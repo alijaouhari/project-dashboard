@@ -1,11 +1,10 @@
-// Cloudflare Workers API handler for project dashboard
+// Cloudflare Pages Function for API routes
 
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const path = url.pathname.replace('/api/', '');
   
-  // CORS headers
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
@@ -17,7 +16,6 @@ export async function onRequest(context) {
   }
 
   try {
-    // Login endpoint
     if (path === 'login' && request.method === 'POST') {
       const { password } = await request.json();
       if (password === 'admin123') {
@@ -32,7 +30,6 @@ export async function onRequest(context) {
       });
     }
 
-    // All other endpoints require authentication
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'No token provided' }), {
@@ -41,9 +38,8 @@ export async function onRequest(context) {
       });
     }
 
-    const db = env.DB; // D1 database binding
+    const db = env.DB;
 
-    // Get all projects
     if (path === 'projects' && request.method === 'GET') {
       const { archived } = Object.fromEntries(url.searchParams);
       const archivedFilter = archived === 'true' ? 1 : 0;
@@ -64,7 +60,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Get single project
     if (path.startsWith('projects/') && request.method === 'GET') {
       const id = path.split('/')[1];
       const project = await db.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first();
@@ -85,7 +80,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Create project
     if (path === 'projects' && request.method === 'POST') {
       const { name, description, priority, project_url, project_type } = await request.json();
       
@@ -105,7 +99,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Update project
     if (path.startsWith('projects/') && request.method === 'PATCH') {
       const id = path.split('/')[1];
       const { name, description, status, priority, archived, project_url, project_type } = await request.json();
@@ -128,7 +121,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Delete project
     if (path.startsWith('projects/') && request.method === 'DELETE') {
       const id = path.split('/')[1];
       await db.prepare('DELETE FROM tasks WHERE project_id = ?').bind(id).run();
@@ -139,7 +131,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Create task
     if (path === 'tasks' && request.method === 'POST') {
       const { project_id, title, description, estimated_minutes } = await request.json();
       
@@ -158,7 +149,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Update task
     if (path.startsWith('tasks/') && request.method === 'PATCH') {
       const id = path.split('/')[1];
       const { status, title, description } = await request.json();
@@ -178,7 +168,6 @@ export async function onRequest(context) {
       });
     }
 
-    // Delete task
     if (path.startsWith('tasks/') && request.method === 'DELETE') {
       const id = path.split('/')[1];
       await db.prepare('DELETE FROM tasks WHERE id = ?').bind(id).run();
@@ -197,6 +186,6 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+      });
   }
 }
