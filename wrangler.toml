@@ -4,4 +4,4 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "project-dashboard-db"
-database_id = "placeholder"
+database_id = "f2b0a9e3-cffc-49c9-b0e8-91a982e5a71c"
