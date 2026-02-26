@@ -1,37 +1,8 @@
-// Cloudflare Worker for Project Dashboard
-import { getAssetFromKV } from '@cloudflare/kv-asset-handler';
-import manifestJSON from '__STATIC_CONTENT_MANIFEST';
-const assetManifest = JSON.parse(manifestJSON);
+// Cloudflare Worker for Project Dashboard - API only
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
-    
-    // Handle API routes
-    if (url.pathname.startsWith('/api/')) {
-      return handleApiRequest(request, env, url);
-    }
-    
-    // Serve static files
-    try {
-      return await getAssetFromKV(
-        {
-          request,
-          waitUntil: ctx.waitUntil.bind(ctx),
-        },
-        {
-          ASSET_NAMESPACE: env.__STATIC_CONTENT,
-          ASSET_MANIFEST: assetManifest,
-        }
-      );
-    } catch (e) {
-      return new Response('Not Found', { status: 404 });
-    }
-  }
-};
-
-async function handleApiRequest(request, env, url) {
-    const path = url.pathname.replace('/api/', '');
     
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -42,6 +13,13 @@ async function handleApiRequest(request, env, url) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
+
+    // Only handle /api/ routes
+    if (!url.pathname.startsWith('/api/')) {
+      return new Response('Not an API route', { status: 404 });
+    }
+
+    const path = url.pathname.replace('/api/', '');
 
     try {
       if (path === 'login' && request.method === 'POST') {
@@ -216,4 +194,5 @@ async function handleApiRequest(request, env, url) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
-}
+  }
+};

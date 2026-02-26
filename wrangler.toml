@@ -2,9 +2,6 @@ name = "project-dashboard"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-[site]
-bucket = "./public"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "project-dashboard-db"
