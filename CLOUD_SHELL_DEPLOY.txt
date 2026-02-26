@@ -1,0 +1,20 @@
+# Paste these commands in Oracle Cloud Shell
+
+cd /home/opc/project-dashboard/public/
+
+# Backup current files
+cp index.html index.html.backup
+cp app.js app.js.backup  
+cp style.css style.css.backup
+
+# Now you need to upload the 3 files from your local machine
+# Use the Cloud Shell upload feature (Upload button in Cloud Shell menu)
+# Upload these files from: C:\Users\alija\Kiro-Workspace\projects\project-dashboard\public\
+# - index.html
+# - app.js
+# - style.css
+
+# After upload, restart the dashboard
+pm2 restart project-dashboard
+
+echo "✅ Dashboard updated with edit functionality!"

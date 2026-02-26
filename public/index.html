@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+      <div class="login-container">
+        <h1>🚀 Project Dashboard</h1>
+        <form id="login-form">
+          <input type="password" id="password" placeholder="Enter password" required>
+          <button type="submit">Login</button>
+        </form>
+        <p class="hint">Default: admin123</p>
+      </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard-screen" class="screen hidden">
+      <header>
+        <h1>Projects</h1>
+        <div class="header-actions">
+          <input type="text" id="search-input" placeholder="🔍 Search projects & tasks..." class="search-input">
+          <button id="activity-btn" class="btn-secondary">📊 Activity</button>
+          <button id="export-btn" class="btn-secondary">📥 Export</button>
+          <button id="backup-btn" class="btn-secondary">💾 Backup</button>
+          <button id="logout-btn" class="btn-logout">Logout</button>
+          <button id="add-project-btn" class="btn-primary">+ New Project</button>
+        </div>
+      </header>
+
+      <div class="tabs">
+        <button id="active-tab" class="tab active">Active</button>
+        <button id="archived-tab" class="tab">Archives</button>
+      </div>
+
+      <div id="projects-list" class="projects-grid"></div>
+    </div>
+
+    <!-- Project Detail -->
+    <div id="project-detail-screen" class="screen hidden">
+      <header>
+        <button id="back-btn" class="btn-back">← Back</button>
+        <h1 id="project-title"></h1>
+      </header>
+
+      <div class="project-info">
+        <p id="project-description"></p>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <p id="progress-text" class="progress-text"></p>
+      </div>
+
+      <div class="tasks-section">
+        <div class="section-header">
+          <h2>Tasks</h2>
+          <button id="add-task-btn" class="btn-secondary">+ Add Task</button>
+        </div>
+        <div id="tasks-list"></div>
+      </div>
+    </div>
+
+    <!-- Add Project Modal -->
+    <div id="add-project-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>New Project</h2>
+        <form id="add-project-form">
+          <input type="text" id="project-name" placeholder="Project name" required>
+          <textarea id="project-description" placeholder="Description" rows="4"></textarea>
+          <input type="url" id="project-url" placeholder="Project URL (optional)">
+          <select id="project-type">
+            <option value="webapp">🌐 Web App</option>
+            <option value="website">🌍 Website</option>
+            <option value="desktop">💻 Desktop App</option>
+            <option value="mobile">📱 Mobile App</option>
+            <option value="api">⚡ API/Backend</option>
+            <option value="docs">📚 Documentation</option>
+          </select>
+          <select id="project-priority">
+            <option value="0">Low Priority</option>
+            <option value="1" selected>Normal Priority</option>
+            <option value="2">High Priority</option>
+          </select>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn-primary">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Project Modal -->
+    <div id="edit-project-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Edit Project</h2>
+        <form id="edit-project-form">
+          <input type="hidden" id="edit-project-id">
+          <input type="text" id="edit-project-name" placeholder="Project name" required>
+          <textarea id="edit-project-description" placeholder="Description" rows="4"></textarea>
+          <input type="url" id="edit-project-url" placeholder="Project URL (optional)">
+          <select id="edit-project-type">
+            <option value="webapp">🌐 Web App</option>
+            <option value="website">🌍 Website</option>
+            <option value="desktop">💻 Desktop App</option>
+            <option value="mobile">📱 Mobile App</option>
+            <option value="api">⚡ API/Backend</option>
+            <option value="docs">📚 Documentation</option>
+          </select>
+          <select id="edit-project-priority">
+            <option value="0">Low Priority</option>
+            <option value="1">Normal Priority</option>
+            <option value="2">High Priority</option>
+          </select>
+          <div class="modal-actions">
+            <button type="button" class="btn-delete" onclick="deleteProject()">🗑️ Delete</button>
+            <button type="button" class="btn-secondary" onclick="archiveProject()">📦 Archive</button>
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="add-task-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>New Task</h2>
+        <form id="add-task-form">
+          <input type="text" id="task-title" placeholder="Task title" required>
+          <textarea id="task-description" placeholder="Description (optional)" rows="3"></textarea>
+          <input type="number" id="task-estimate" placeholder="Estimated minutes" min="0">
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn-primary">Add Task</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div id="edit-task-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Edit Task</h2>
+        <form id="edit-task-form">
+          <input type="hidden" id="edit-task-id">
+          <input type="text" id="edit-task-title" placeholder="Task title" required>
+          <textarea id="edit-task-description" placeholder="Description (optional)" rows="3"></textarea>
+          <div class="modal-actions">
+            <button type="button" class="btn-delete" onclick="deleteTask()">🗑️ Delete</button>
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Activity Feed Modal -->
+    <div id="activity-modal" class="modal hidden">
+      <div class="modal-content modal-large">
+        <h2>Activity Feed</h2>
+        <div id="activity-feed"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Results Modal -->
+    <div id="search-modal" class="modal hidden">
+      <div class="modal-content modal-large">
+        <h2>Search Results</h2>
+        <div id="search-results"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
