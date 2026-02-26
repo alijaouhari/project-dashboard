@@ -1,0 +1,7 @@
+name = "project-dashboard"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "project-dashboard-db"
+database_id = "placeholder"
