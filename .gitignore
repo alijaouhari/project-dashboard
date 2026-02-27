@@ -1,12 +1,8 @@
 node_modules/
+.env
+.env.local
 database.db
 backups/
 *.log
-.env
 .DS_Store
-
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
-!.env.example
+.vercel
