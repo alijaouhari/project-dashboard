@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Project Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="main-v2.css">
 </head>
 <body>
   <div id="app">
@@ -13,31 +13,34 @@
       <div class="login-container">
         <h1>🚀 Project Dashboard</h1>
         <form id="login-form">
-          <input type="password" id="password" placeholder="Enter password" required>
+          <div class="password-wrapper">
+            <input type="password" id="password" placeholder="Enter password" required>
+            <button type="button" id="toggle-password">👁️</button>
+          </div>
           <button type="submit">Login</button>
         </form>
-        <p class="hint">Default: admin123</p>
       </div>
     </div>
 
     <!-- Main Dashboard -->
     <div id="dashboard-screen" class="screen hidden">
       <header>
-        <h1>Projects</h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <h1>🌐 Project Dashboard</h1>
+        </div>
         <div class="header-actions">
           <input type="text" id="search-input" placeholder="🔍 Search projects & tasks..." class="search-input">
-          <button id="activity-btn" class="btn-secondary">📊 Activity</button>
-          <button id="export-btn" class="btn-secondary">📥 Export</button>
-          <button id="backup-btn" class="btn-secondary">💾 Backup</button>
+          <button id="activity-btn" class="btn-secondary">Activity</button>
+          <button id="export-btn" class="btn-secondary">Export</button>
+          <button id="backup-btn" class="btn-secondary">Backup</button>
           <button id="logout-btn" class="btn-logout">Logout</button>
           <button id="add-project-btn" class="btn-primary">+ New Project</button>
         </div>
+        <div class="header-tabs">
+          <button id="active-tab" class="tab active">Active</button>
+          <button id="archived-tab" class="tab">Archives</button>
+        </div>
       </header>
-
-      <div class="tabs">
-        <button id="active-tab" class="tab active">Active</button>
-        <button id="archived-tab" class="tab">Archives</button>
-      </div>
 
       <div id="projects-list" class="projects-grid"></div>
     </div>
@@ -45,8 +48,16 @@
     <!-- Project Detail -->
     <div id="project-detail-screen" class="screen hidden">
       <header>
-        <button id="back-btn" class="btn-back">← Back</button>
-        <h1 id="project-title"></h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <h1 id="project-title"></h1>
+        </div>
+        <div class="header-actions">
+          <button id="back-btn" class="btn-secondary">← Back</button>
+          <button id="detail-logout-btn" class="btn-logout">Logout</button>
+        </div>
+        <div class="header-tabs">
+          <button class="tab active">Tasks</button>
+        </div>
       </header>
 
       <div class="project-info">
@@ -163,22 +174,22 @@
     <!-- Activity Feed Modal -->
     <div id="activity-modal" class="modal hidden">
       <div class="modal-content modal-large">
-        <h2>Activity Feed</h2>
-        <div id="activity-feed"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn-cancel" onclick="closeModal()">Close</button>
+        <div class="modal-header">
+          <h2>Activity Feed</h2>
+          <button type="button" class="modal-close" onclick="closeModal()">✕</button>
         </div>
+        <div id="activity-feed"></div>
       </div>
     </div>
 
     <!-- Search Results Modal -->
     <div id="search-modal" class="modal hidden">
       <div class="modal-content modal-large">
-        <h2>Search Results</h2>
-        <div id="search-results"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn-cancel" onclick="closeModal()">Close</button>
+        <div class="modal-header">
+          <h2>Search Results</h2>
+          <button type="button" class="modal-close" onclick="closeModal()">✕</button>
         </div>
+        <div id="search-results"></div>
       </div>
     </div>
 

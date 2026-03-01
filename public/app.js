@@ -9,7 +9,8 @@ function showScreen(screenId) {
   document.getElementById(screenId).classList.remove('hidden');
 }
 
-function closeModal() {
+// Close modal - MUST be in global scope for inline onclick
+window.closeModal = function() {
   document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 }
 
@@ -34,6 +35,20 @@ async function apiCall(endpoint, options = {}) {
 
   return response.json();
 }
+
+// Toggle password visibility
+document.getElementById('toggle-password').addEventListener('click', () => {
+  const passwordInput = document.getElementById('password');
+  const toggleBtn = document.getElementById('toggle-password');
+  
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    toggleBtn.textContent = '🙈';
+  } else {
+    passwordInput.type = 'password';
+    toggleBtn.textContent = '👁️';
+  }
+});
 
 // Login
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -97,7 +112,7 @@ async function loadDashboard() {
     card.innerHTML = `
       <div class="project-header">
         <h3><span class="project-type-icon">${typeIcon}</span> ${project.name}</h3>
-        <div style="display: flex; gap: 8px;">
+        <div class="project-header-icons">
           ${project.project_url ? `<a href="${project.project_url}" target="_blank" class="project-link" onclick="event.stopPropagation()">🔗</a>` : ''}
           <button class="card-edit-btn" onclick="event.stopPropagation(); editProject(${project.id})">⚙️</button>
         </div>
@@ -130,20 +145,12 @@ async function loadProject(projectId) {
   document.getElementById('project-title').textContent = project.name;
   document.getElementById('project-description').textContent = project.description || 'No description';
 
-  // Add project link and edit button if exists
+  // Add edit button to title
   const titleEl = document.getElementById('project-title');
   titleEl.innerHTML = `${project.name} `;
-  if (project.project_url) {
-    const linkBtn = document.createElement('a');
-    linkBtn.href = project.project_url;
-    linkBtn.target = '_blank';
-    linkBtn.className = 'project-link-detail';
-    linkBtn.textContent = '🔗 View Project';
-    titleEl.appendChild(linkBtn);
-  }
   const editBtn = document.createElement('button');
   editBtn.className = 'title-edit-btn';
-  editBtn.textContent = '⚙️ Edit Project';
+  editBtn.textContent = 'Edit Project';
   editBtn.onclick = () => editProject(projectId);
   titleEl.appendChild(editBtn);
 
@@ -170,17 +177,20 @@ async function loadProject(projectId) {
       <input type="checkbox" ${task.status === 'done' ? 'checked' : ''} 
         onchange="toggleTask(${task.id}, this.checked)">
       <div class="task-content">
-        <div class="task-title">${task.title}</div>
-        ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
-        ${task.completed_at ? `<div class="task-meta">Completed: ${new Date(task.completed_at).toLocaleString()}</div>` : ''}
+        <div>
+          <div class="task-title">${task.title}</div>
+          ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
+          ${task.completed_at ? `<div class="task-meta">Completed: ${new Date(task.completed_at).toLocaleString()}</div>` : ''}
+        </div>
+        <button class="task-edit-btn" onclick="event.stopPropagation(); editTask(${task.id})">Edit</button>
       </div>
     `;
     tasksList.appendChild(taskEl);
   });
 }
 
-// Toggle task
-async function toggleTask(taskId, checked) {
+// Toggle task - MUST be in global scope for inline onclick
+window.toggleTask = async function(taskId, checked) {
   await apiCall(`/tasks/${taskId}`, {
     method: 'PATCH',
     body: JSON.stringify({ status: checked ? 'done' : 'pending' })
@@ -257,11 +267,13 @@ document.getElementById('archived-tab').addEventListener('click', () => {
   loadDashboard();
 });
 
-// Logout
-document.getElementById('logout-btn').addEventListener('click', () => {
-  localStorage.removeItem('token');
-  token = null;
-  showScreen('login-screen');
+// Logout buttons (multiple on different screens)
+document.querySelectorAll('.btn-logout').forEach(btn => {
+  btn.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    token = null;
+    showScreen('login-screen');
+  });
 });
 
 // Initialize
@@ -271,92 +283,91 @@ if (token) {
   showScreen('login-screen');
 }
 
-// Wait for DOM to be ready before attaching event listeners
-document.addEventListener('DOMContentLoaded', () => {
-  // Activity Feed button
-  const activityBtn = document.getElementById('activity-btn');
-  if (activityBtn) {
-    activityBtn.addEventListener('click', async () => {
-      const activities = await apiCall('/activity?limit=50');
-      const container = document.getElementById('activity-feed');
-      
-      if (activities.length === 0) {
-        container.innerHTML = '<p class="empty-state">No activity yet</p>';
-      } else {
-        let html = '<div class="activity-list">';
-        activities.forEach(a => {
-          const time = new Date(a.timestamp).toLocaleString();
-          const icon = a.actor === 'kiro' ? '🤖' : a.actor === 'github' ? '🐙' : '👤';
-          html += `<div class="activity-item">
-            <span class="activity-icon">${icon}</span>
-            <div class="activity-content">
-              <strong>${a.project_name || 'Unknown'}</strong>
-              <p>${a.details}</p>
-              <span class="activity-time">${time}</span>
-            </div>
-          </div>`;
-        });
-        html += '</div>';
-        container.innerHTML = html;
-      }
-      
-      document.getElementById('activity-modal').classList.remove('hidden');
-    });
-  }
-
-  // Export button
-  const exportBtn = document.getElementById('export-btn');
-  if (exportBtn) {
-    exportBtn.addEventListener('click', async () => {
-      const format = confirm('Export as CSV? (Cancel for JSON)') ? 'csv' : 'json';
-      const response = await fetch(`${API_URL}/export?format=${format}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+// Activity Feed button
+const activityBtn = document.getElementById('activity-btn');
+if (activityBtn) {
+  activityBtn.addEventListener('click', async () => {
+    const activities = await apiCall('/activity?limit=50');
+    const container = document.getElementById('activity-feed');
+    
+    if (activities.length === 0) {
+      container.innerHTML = '<p class="empty-state">No activity yet</p>';
+    } else {
+      let html = '<div class="activity-list">';
+      activities.forEach(a => {
+        const time = new Date(a.timestamp).toLocaleString();
+        const icon = a.actor === 'kiro' ? '🤖' : a.actor === 'github' ? '🐙' : '👤';
+        html += `<div class="activity-item">
+          <span class="activity-icon">${icon}</span>
+          <div class="activity-content">
+            <strong>${a.project_name || 'Unknown'}</strong>
+            <p>${a.details}</p>
+            <span class="activity-time">${time}</span>
+          </div>
+        </div>`;
       });
-      
-      if (format === 'csv') {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `projects-${Date.now()}.csv`;
-        a.click();
-      } else {
-        const data = await response.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `projects-${Date.now()}.json`;
-        a.click();
-      }
-      
-      alert('Export complete!');
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    
+    document.getElementById('activity-modal').classList.remove('hidden');
+  });
+}
+
+// Export button
+const exportBtn = document.getElementById('export-btn');
+if (exportBtn) {
+  exportBtn.addEventListener('click', async () => {
+    const format = confirm('Export as CSV? (Cancel for JSON)') ? 'csv' : 'json';
+    const response = await fetch(`${API_URL}/export?format=${format}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
     });
-  }
+    
+    if (format === 'csv') {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `projects-${Date.now()}.csv`;
+      a.click();
+    } else {
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `projects-${Date.now()}.json`;
+      a.click();
+    }
+    
+    alert('Export complete!');
+  });
+}
 
-  // Backup button
-  const backupBtn = document.getElementById('backup-btn');
-  if (backupBtn) {
-    backupBtn.addEventListener('click', async () => {
-      const result = await apiCall('/backup', { method: 'POST' });
-      if (result.success) {
-        alert(`Backup created: ${result.backup}`);
-      }
-    });
-  }
-});
+// Backup button
+const backupBtn = document.getElementById('backup-btn');
+if (backupBtn) {
+  backupBtn.addEventListener('click', async () => {
+    const result = await apiCall('/backup', { method: 'POST' });
+    if (result.success) {
+      alert(`Backup created: ${result.backup}`);
+    }
+  });
+}
 
 
-// Edit Project
-function editProject(projectId) {
+// Edit Project - MUST be in global scope for inline onclick
+window.editProject = function(projectId) {
   apiCall(`/projects/${projectId}`).then(project => {
-    document.getElementById('edit-project-id').value = project.id;
-    document.getElementById('edit-project-name').value = project.name;
-    document.getElementById('edit-project-description').value = project.description || '';
-    document.getElementById('edit-project-url').value = project.project_url || '';
-    document.getElementById('edit-project-type').value = project.project_type || 'webapp';
-    document.getElementById('edit-project-priority').value = project.priority;
-    document.getElementById('edit-project-modal').classList.remove('hidden');
+    if (project) {
+      document.getElementById('edit-project-id').value = project.id;
+      document.getElementById('edit-project-name').value = project.name;
+      document.getElementById('edit-project-description').value = project.description || '';
+      document.getElementById('edit-project-url').value = project.project_url || '';
+      document.getElementById('edit-project-type').value = project.project_type || 'webapp';
+      document.getElementById('edit-project-priority').value = project.priority;
+      document.getElementById('edit-project-modal').classList.remove('hidden');
+    }
   });
 }
 
@@ -383,8 +394,8 @@ document.getElementById('edit-project-form').addEventListener('submit', async (e
   }
 });
 
-// Archive/Unarchive Project
-async function archiveProject() {
+// Archive/Unarchive Project - MUST be in global scope for inline onclick
+window.archiveProject = async function() {
   const id = document.getElementById('edit-project-id').value;
   const isArchived = showArchived ? 0 : 1;
   const action = isArchived ? 'archive' : 'unarchive';
@@ -402,8 +413,8 @@ async function archiveProject() {
   loadDashboard();
 }
 
-// Delete Project
-async function deleteProject() {
+// Delete Project - MUST be in global scope for inline onclick
+window.deleteProject = async function() {
   const id = document.getElementById('edit-project-id').value;
   
   if (!confirm('Are you sure you want to delete this project? All tasks will be deleted too.')) {
@@ -415,8 +426,8 @@ async function deleteProject() {
   loadDashboard();
 }
 
-// Edit Task
-function editTask(taskId) {
+// Edit Task - MUST be in global scope for inline onclick
+window.editTask = function(taskId) {
   apiCall(`/projects/${currentProjectId}`).then(project => {
     const task = project.tasks.find(t => t.id === taskId);
     if (task) {
@@ -444,8 +455,8 @@ document.getElementById('edit-task-form').addEventListener('submit', async (e) =
   loadProject(currentProjectId);
 });
 
-// Delete Task
-async function deleteTask() {
+// Delete Task - MUST be in global scope for inline onclick
+window.deleteTask = async function() {
   const id = document.getElementById('edit-task-id').value;
   
   if (!confirm('Are you sure you want to delete this task?')) {
@@ -507,110 +518,3 @@ function showSearchResults(results) {
   
   modal.classList.remove('hidden');
 }
-
-// Activity Feed
-document.getElementById('activity-btn').addEventListener('click', async () => {
-  const activities = await apiCall('/activity?limit=50');
-  const container = document.getElementById('activity-feed');
-  
-  if (activities.length === 0) {
-    container.innerHTML = '<p class="empty-state">No activity yet</p>';
-  } else {
-    let html = '<div class="activity-list">';
-    activities.forEach(a => {
-      const time = new Date(a.timestamp).toLocaleString();
-      const icon = a.actor === 'kiro' ? '🤖' : a.actor === 'github' ? '🐙' : '👤';
-      html += `<div class="activity-item">
-        <span class="activity-icon">${icon}</span>
-        <div class="activity-content">
-          <strong>${a.project_name || 'Unknown'}</strong>
-          <p>${a.details}</p>
-          <span class="activity-time">${time}</span>
-        </div>
-      </div>`;
-    });
-    html += '</div>';
-    container.innerHTML = html;
-  }
-  
-  document.getElementById('activity-modal').classList.remove('hidden');
-});
-
-// Export
-document.getElementById('export-btn').addEventListener('click', async () => {
-  const format = confirm('Export as CSV? (Cancel for JSON)') ? 'csv' : 'json';
-  const response = await fetch(`${API_URL}/export?format=${format}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  
-  if (format === 'csv') {
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `projects-${Date.now()}.csv`;
-    a.click();
-  } else {
-    const data = await response.json();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `projects-${Date.now()}.json`;
-    a.click();
-  }
-  
-  alert('Export complete!');
-});
-
-// Backup
-document.getElementById('backup-btn').addEventListener('click', async () => {
-  const result = await apiCall('/backup', { method: 'POST' });
-  if (result.success) {
-    alert(`Backup created: ${result.backup}`);
-  }
-});
-
-// Update project cards to include edit button
-document.querySelectorAll('.project-card').forEach(card => {
-  const projectId = card.getAttribute('data-project-id');
-  if (!projectId) return;
-  
-  const editBtn = document.createElement('button');
-  editBtn.className = 'card-edit-btn';
-  editBtn.innerHTML = '⚙️';
-  editBtn.onclick = (e) => {
-    e.stopPropagation();
-    editProject(parseInt(projectId));
-  };
-  card.appendChild(editBtn);
-});
-
-// Update task items to include edit button
-const originalLoadProject = loadProject;
-loadProject = async function(projectId) {
-  await originalLoadProject(projectId);
-  
-  // Add edit button to project title
-  const titleEl = document.getElementById('project-title');
-  const editBtn = document.createElement('button');
-  editBtn.className = 'title-edit-btn';
-  editBtn.innerHTML = '⚙️ Edit Project';
-  editBtn.onclick = () => editProject(projectId);
-  titleEl.appendChild(editBtn);
-  
-  // Add edit buttons to tasks
-  document.querySelectorAll('.task-item').forEach(taskEl => {
-    const taskId = taskEl.getAttribute('data-task-id');
-    if (!taskId) return;
-    
-    const editBtn = document.createElement('button');
-    editBtn.className = 'task-edit-btn';
-    editBtn.innerHTML = '✏️';
-    editBtn.onclick = (e) => {
-      e.stopPropagation();
-      editTask(parseInt(taskId));
-    };
-    taskEl.querySelector('.task-content').appendChild(editBtn);
-  });
-};

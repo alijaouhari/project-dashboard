@@ -406,6 +406,28 @@ app.post('/api/sync/kiro', authenticate, async (req, res) => {
   }
 });
 
+app.post('/api/backup', authenticate, async (req, res) => {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `backup-${timestamp}.json`;
+    
+    const projectsResult = await pool.query('SELECT * FROM projects');
+    const tasksResult = await pool.query('SELECT * FROM tasks');
+    const activityResult = await pool.query('SELECT * FROM activity_log');
+    
+    const backup = {
+      timestamp: new Date().toISOString(),
+      projects: projectsResult.rows,
+      tasks: tasksResult.rows,
+      activity: activityResult.rows
+    };
+    
+    res.json({ success: true, backup: filename, data: backup });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Serve index.html for root path
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
