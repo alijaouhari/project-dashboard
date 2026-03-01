@@ -1,3 +1,5 @@
+/* Copyright (c) 2026 Project-Dashboard. All rights reserved. Proprietary & Confidential. */
+
 const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');

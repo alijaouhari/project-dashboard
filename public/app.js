@@ -1,3 +1,5 @@
+/* Copyright (c) 2026 Project-Dashboard. All rights reserved. Proprietary & Confidential. */
+
 const API_URL = window.location.origin + '/api';
 let token = localStorage.getItem('token');
 let currentProjectId = null;
