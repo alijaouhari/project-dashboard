@@ -314,6 +314,37 @@ header h1 {
   color: #64748b;
 }
 
+/* Launch Status Badges */
+.launch-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
+  cursor: help;
+}
+
+.launch-status.status-ready {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.launch-status.status-in-progress {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.launch-status.status-blocked {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.launch-status.status-error {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
 .project-card p {
   color: #64748b;
   font-size: 14px;
@@ -766,4 +797,145 @@ header h1 {
     width: 100%;
     margin: 12px 0 0 0;
   }
+}
+
+/* System Progress Panel */
+.system-progress-panel {
+  margin: 40px auto;
+  max-width: 1200px;
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.system-progress-panel h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 20px;
+}
+
+.system-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.system-progress-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border-left: 3px solid #10b981;
+}
+
+.progress-check {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.progress-content {
+  flex: 1;
+}
+
+.progress-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.progress-description {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* Workflow Editor Panel */
+.workflow-editor-panel {
+  margin: 40px auto;
+  max-width: 1200px;
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.workflow-editor-panel h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 20px;
+}
+
+.workflow-editor-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-editor-content label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 8px;
+}
+
+.workflow-select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+}
+
+.workflow-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.workflow-textarea {
+  width: 100%;
+  min-height: 300px;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.workflow-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.workflow-status {
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.workflow-status.success {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.workflow-status.error {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.workflow-status.loading {
+  background: #dbeafe;
+  color: #2563eb;
 }

@@ -121,6 +121,7 @@ async function loadDashboard() {
       </div>
       <div class="project-meta">
         ${deploymentBadge}
+        <span class="launch-status" data-project-id="${project.id}">⏳ Checking...</span>
       </div>
       <p>${project.description || 'No description'}</p>
       <div class="project-stats">
@@ -519,4 +520,276 @@ function showSearchResults(results) {
   }
   
   modal.classList.remove('hidden');
+}
+
+// Automatic Launch Readiness Monitor - Batch Version
+async function updateProjectStatuses() {
+  try {
+    // Single batch API call for all projects
+    const batchResponse = await apiCall('/launch-ready');
+    
+    if (!batchResponse || !batchResponse.ok) {
+      console.error('Failed to fetch batch readiness');
+      return;
+    }
+    
+    // Build a map: project_id -> readiness
+    const readinessMap = new Map();
+    for (const readiness of batchResponse.projects) {
+      readinessMap.set(readiness.project_id, readiness);
+    }
+    
+    // Update each project card using the map
+    const projectCards = document.querySelectorAll('.project-card');
+    
+    for (const card of projectCards) {
+      const projectId = parseInt(card.getAttribute('data-project-id'));
+      const statusEl = card.querySelector('.launch-status');
+      
+      if (!statusEl) continue;
+      
+      const readiness = readinessMap.get(projectId);
+      
+      if (!readiness) {
+        statusEl.innerHTML = '⚠️ NO DATA';
+        statusEl.className = 'launch-status status-error';
+        continue;
+      }
+      
+      let statusHTML = '';
+      let statusClass = '';
+      
+      // Status mapping driven by backend response
+      if (readiness.ready === true) {
+        // READY: All checks passed
+        statusHTML = '🟢 READY';
+        statusClass = 'status-ready';
+      } else if (readiness.missing.includes('MISSING_LAUNCH_TASKS')) {
+        // BLOCKED: Launch tasks missing
+        statusHTML = '🔴 BLOCKED';
+        statusClass = 'status-blocked';
+      } else if (readiness.missing.includes('MISSING_ARCHITECTURE')) {
+        // BLOCKED: Architecture missing
+        statusHTML = '🔴 BLOCKED';
+        statusClass = 'status-blocked';
+      } else if (readiness.missing.includes('MISSING_LAUNCH_TASK_LOGS')) {
+        // BLOCKED: Launch task logs missing
+        statusHTML = '🔴 BLOCKED';
+        statusClass = 'status-blocked';
+      } else if (readiness.missing.includes('LAUNCH_TASKS_NOT_DONE')) {
+        // IN PROGRESS: Launch tasks exist but not all done
+        statusHTML = '🟡 IN PROGRESS';
+        statusClass = 'status-in-progress';
+      } else {
+        // BLOCKED: Default safe state for any other missing requirements
+        statusHTML = '🔴 BLOCKED';
+        statusClass = 'status-blocked';
+      }
+      
+      statusEl.innerHTML = statusHTML;
+      statusEl.className = `launch-status ${statusClass}`;
+      statusEl.title = readiness.missing.join(', ') || 'All checks passed';
+    }
+  } catch (err) {
+    console.error('Failed to update project statuses:', err);
+  }
+}
+
+// Auto-refresh status every 30 seconds
+let statusRefreshInterval = null;
+
+function startStatusMonitoring() {
+  // Clear any existing interval
+  if (statusRefreshInterval) {
+    clearInterval(statusRefreshInterval);
+  }
+  
+  // Initial status update
+  setTimeout(updateProjectStatuses, 1000);
+  
+  // Set up auto-refresh every 30 seconds
+  statusRefreshInterval = setInterval(updateProjectStatuses, 30000);
+  
+  console.log('✅ Launch readiness monitoring started (auto-refresh every 30s)');
+}
+
+function stopStatusMonitoring() {
+  if (statusRefreshInterval) {
+    clearInterval(statusRefreshInterval);
+    statusRefreshInterval = null;
+    console.log('⏸️ Launch readiness monitoring stopped');
+  }
+}
+
+// Load System Progress
+async function loadSystemProgress() {
+  try {
+    const response = await apiCall('/system/progress');
+    
+    if (!response || !response.ok) {
+      console.error('Failed to load system progress');
+      return;
+    }
+    
+    const container = document.getElementById('system-progress-list');
+    container.innerHTML = '';
+    
+    if (response.items.length === 0) {
+      container.innerHTML = '<p class="empty-state">No system progress items.</p>';
+      return;
+    }
+    
+    response.items.forEach(item => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'system-progress-item';
+      itemEl.innerHTML = `
+        <div class="progress-check">✅</div>
+        <div class="progress-content">
+          <div class="progress-title">${item.title}</div>
+          <div class="progress-description">${item.description}</div>
+        </div>
+      `;
+      container.appendChild(itemEl);
+    });
+    
+    console.log(`✅ System progress loaded: ${response.items.length} items`);
+  } catch (err) {
+    console.error('Failed to load system progress:', err);
+  }
+}
+
+// Override loadDashboard to start monitoring after projects load
+const originalLoadDashboard = loadDashboard;
+loadDashboard = async function() {
+  await originalLoadDashboard();
+  startStatusMonitoring();
+  loadSystemProgress();
+}
+
+// Stop monitoring when leaving dashboard
+const originalShowScreen = showScreen;
+showScreen = function(screenId) {
+  if (screenId !== 'dashboard-screen') {
+    stopStatusMonitoring();
+  }
+  originalShowScreen(screenId);
+}
+
+// Workflow Editor Functions
+
+// Populate workflow project dropdown
+async function populateWorkflowProjectSelect() {
+  try {
+    const projects = await apiCall('/projects?archived=false');
+    
+    if (!projects) return;
+    
+    const select = document.getElementById('workflowProjectSelect');
+    
+    // Clear existing options except the first one
+    select.innerHTML = '<option value="">-- Select a project --</option>';
+    
+    projects.forEach(project => {
+      const option = document.createElement('option');
+      option.value = project.id;
+      option.textContent = project.name;
+      select.appendChild(option);
+    });
+    
+    console.log(`✅ Workflow project dropdown populated: ${projects.length} projects`);
+  } catch (err) {
+    console.error('Failed to populate workflow project dropdown:', err);
+  }
+}
+
+// Save workflow and regenerate tasks
+async function saveWorkflow() {
+  const projectId = document.getElementById('workflowProjectSelect').value;
+  const jsonInput = document.getElementById('workflowJsonInput').value.trim();
+  const statusDiv = document.getElementById('workflowSaveStatus');
+  
+  // Clear previous status
+  statusDiv.textContent = '';
+  statusDiv.className = 'workflow-status';
+  
+  // Validation
+  if (!projectId) {
+    statusDiv.textContent = '❌ Please select a project';
+    statusDiv.className = 'workflow-status error';
+    return;
+  }
+  
+  if (!jsonInput) {
+    statusDiv.textContent = '❌ Please enter workflow JSON';
+    statusDiv.className = 'workflow-status error';
+    return;
+  }
+  
+  // Parse JSON
+  let workflowData;
+  try {
+    workflowData = JSON.parse(jsonInput);
+  } catch (err) {
+    statusDiv.textContent = '❌ Invalid JSON: ' + err.message;
+    statusDiv.className = 'workflow-status error';
+    return;
+  }
+  
+  // Validate required fields
+  if (!workflowData.goals || !workflowData.workflow) {
+    statusDiv.textContent = '❌ JSON must contain "goals" and "workflow" fields';
+    statusDiv.className = 'workflow-status error';
+    return;
+  }
+  
+  // Show loading
+  statusDiv.textContent = '⏳ Saving workflow and regenerating tasks...';
+  statusDiv.className = 'workflow-status loading';
+  
+  try {
+    // Call PUT /api/projects/:id/workflow
+    const response = await apiCall(`/projects/${projectId}/workflow`, {
+      method: 'PUT',
+      body: JSON.stringify(workflowData)
+    });
+    
+    if (response && response.ok) {
+      statusDiv.textContent = '✅ Saved. Tasks regenerated.';
+      statusDiv.className = 'workflow-status success';
+      
+      // Refresh dashboard to show updated tasks
+      await loadDashboard();
+      
+      // Clear the textarea
+      document.getElementById('workflowJsonInput').value = '';
+      
+      console.log(`✅ Workflow saved for project ${projectId}`);
+    } else {
+      statusDiv.textContent = '❌ Failed to save: ' + (response?.message || 'Unknown error');
+      statusDiv.className = 'workflow-status error';
+    }
+  } catch (err) {
+    statusDiv.textContent = '❌ Error: ' + err.message;
+    statusDiv.className = 'workflow-status error';
+    console.error('Failed to save workflow:', err);
+  }
+}
+
+// Initialize workflow editor
+function initWorkflowEditor() {
+  const saveBtn = document.getElementById('saveWorkflowBtn');
+  
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveWorkflow);
+  }
+  
+  // Populate project dropdown when dashboard loads
+  populateWorkflowProjectSelect();
+}
+
+// Override loadDashboard to initialize workflow editor
+const originalLoadDashboardWithWorkflow = loadDashboard;
+loadDashboard = async function() {
+  await originalLoadDashboardWithWorkflow();
+  initWorkflowEditor();
 }

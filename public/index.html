@@ -43,6 +43,47 @@
       </header>
 
       <div id="projects-list" class="projects-grid"></div>
+
+      <!-- System Progress Panel -->
+      <div id="system-progress-panel" class="system-progress-panel">
+        <h2>✅ System Progress</h2>
+        <div id="system-progress-list" class="system-progress-list"></div>
+      </div>
+
+      <!-- Workflow Editor Panel -->
+      <div id="workflow-editor-panel" class="workflow-editor-panel">
+        <h2>⚙️ Workflow Editor</h2>
+        <div class="workflow-editor-content">
+          <label for="workflowProjectSelect">Select Project:</label>
+          <select id="workflowProjectSelect" class="workflow-select">
+            <option value="">-- Select a project --</option>
+          </select>
+          
+          <label for="workflowJsonInput">Workflow JSON:</label>
+          <textarea id="workflowJsonInput" class="workflow-textarea" placeholder='Paste workflow JSON here, e.g.:
+{
+  "goals": {
+    "primary": "Build production-ready app"
+  },
+  "workflow": {
+    "tasks": [
+      {
+        "key": "SETUP",
+        "title": "Setup Environment",
+        "description": "Configure dev environment",
+        "execution_prompt": "Set up project...",
+        "assigned_agent": "developer",
+        "priority": "high",
+        "phase": "setup"
+      }
+    ]
+  }
+}'></textarea>
+          
+          <button id="saveWorkflowBtn" class="btn-primary">Save Workflow (Auto-Regenerates Tasks)</button>
+          <div id="workflowSaveStatus" class="workflow-status"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Project Detail -->
