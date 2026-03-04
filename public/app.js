@@ -524,12 +524,87 @@ function showSearchResults(results) {
 
 // Automatic Launch Readiness Monitor - Batch Version
 async function updateProjectStatuses() {
+  const statusInfoEl = document.getElementById('statusRefreshInfo');
+  
   try {
-    // Single batch API call for all projects
-    const batchResponse = await apiCall('/launch-ready');
+    // Create abort controller for 5-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    if (!batchResponse || !batchResponse.ok) {
-      console.error('Failed to fetch batch readiness');
+    // Single batch API call for all projects with timeout
+    let batchResponse;
+    try {
+      const response = await fetch(`${API_URL}/launch-ready`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        token = null;
+        showScreen('login-screen');
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      batchResponse = await response.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      
+      // Handle timeout or network errors
+      const errorMsg = err.name === 'AbortError' 
+        ? 'launch-ready request timeout' 
+        : err.message;
+      
+      // Set all badges to ERROR
+      const projectCards = document.querySelectorAll('.project-card');
+      for (const card of projectCards) {
+        const statusEl = card.querySelector('.launch-status');
+        if (statusEl) {
+          statusEl.innerHTML = '⚠️ ERROR';
+          statusEl.className = 'launch-status status-error';
+          statusEl.title = errorMsg;
+        }
+      }
+      
+      // Update status info
+      if (statusInfoEl) {
+        statusInfoEl.textContent = `Status: ERROR - ${errorMsg}`;
+        statusInfoEl.className = 'status-refresh-info error';
+      }
+      
+      console.error('Failed to fetch batch readiness:', err);
+      return;
+    }
+    
+    // Validate response structure
+    if (!batchResponse || !batchResponse.ok || !Array.isArray(batchResponse.projects)) {
+      const errorMsg = 'Invalid response from launch-ready API';
+      
+      const projectCards = document.querySelectorAll('.project-card');
+      for (const card of projectCards) {
+        const statusEl = card.querySelector('.launch-status');
+        if (statusEl) {
+          statusEl.innerHTML = '⚠️ ERROR';
+          statusEl.className = 'launch-status status-error';
+          statusEl.title = errorMsg;
+        }
+      }
+      
+      if (statusInfoEl) {
+        statusInfoEl.textContent = `Status: ERROR - ${errorMsg}`;
+        statusInfoEl.className = 'status-refresh-info error';
+      }
+      
+      console.error('Invalid batch readiness response:', batchResponse);
       return;
     }
     
@@ -553,6 +628,7 @@ async function updateProjectStatuses() {
       if (!readiness) {
         statusEl.innerHTML = '⚠️ NO DATA';
         statusEl.className = 'launch-status status-error';
+        statusEl.title = 'project missing from batch readiness response';
         continue;
       }
       
@@ -590,7 +666,34 @@ async function updateProjectStatuses() {
       statusEl.className = `launch-status ${statusClass}`;
       statusEl.title = readiness.missing.join(', ') || 'All checks passed';
     }
+    
+    // Update status info with success timestamp
+    if (statusInfoEl) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+      statusInfoEl.textContent = `Status: refreshed ${timeStr}`;
+      statusInfoEl.className = 'status-refresh-info success';
+    }
+    
   } catch (err) {
+    // Catch-all for any unexpected errors
+    const errorMsg = err.message || 'Unknown error';
+    
+    const projectCards = document.querySelectorAll('.project-card');
+    for (const card of projectCards) {
+      const statusEl = card.querySelector('.launch-status');
+      if (statusEl) {
+        statusEl.innerHTML = '⚠️ ERROR';
+        statusEl.className = 'launch-status status-error';
+        statusEl.title = errorMsg;
+      }
+    }
+    
+    if (statusInfoEl) {
+      statusInfoEl.textContent = `Status: ERROR - ${errorMsg}`;
+      statusInfoEl.className = 'status-refresh-info error';
+    }
+    
     console.error('Failed to update project statuses:', err);
   }
 }
@@ -604,8 +707,8 @@ function startStatusMonitoring() {
     clearInterval(statusRefreshInterval);
   }
   
-  // Initial status update
-  setTimeout(updateProjectStatuses, 1000);
+  // Immediate status update (no delay)
+  updateProjectStatuses();
   
   // Set up auto-refresh every 30 seconds
   statusRefreshInterval = setInterval(updateProjectStatuses, 30000);
