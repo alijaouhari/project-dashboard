@@ -87,6 +87,57 @@ async function initDatabase() {
       )
     `);
 
+    // Safe migrations: Add new columns to tasks
+    try { await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS execution_prompt TEXT`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_agent TEXT`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived INTEGER DEFAULT 0`); } catch (e) {}
+    try { await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS key TEXT`); } catch (e) {}
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS execution_logs (
+        id SERIAL PRIMARY KEY,
+        task_id INTEGER,
+        agent TEXT,
+        result TEXT,
+        timestamp TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_execution_logs_task_id ON execution_logs(task_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS architecture (
+        id SERIAL PRIMARY KEY,
+        project_id INTEGER UNIQUE,
+        stack TEXT,
+        folder_structure TEXT,
+        database_schema TEXT,
+        deployment TEXT
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS system_progress (
+        id SERIAL PRIMARY KEY,
+        key TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT DEFAULT 'done',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_workflows (
+        id SERIAL PRIMARY KEY,
+        project_id INTEGER UNIQUE NOT NULL,
+        goals TEXT,
+        workflow TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     // Set default password: "admin123"
     const authCheck = await client.query('SELECT COUNT(*) as count FROM auth');
     if (authCheck.rows[0].count === '0') {
@@ -425,6 +476,115 @@ app.post('/api/backup', authenticate, async (req, res) => {
     };
     
     res.json({ success: true, backup: filename, data: backup });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ChatGPT Bridge API — static API key auth for machine-to-machine
+// ============================================================
+const BRIDGE_API_KEY = process.env.BRIDGE_API_KEY || '';
+
+const bridgeAuth = (req, res, next) => {
+  const key = req.headers['x-bridge-key'];
+  if (!key || !BRIDGE_API_KEY || key !== BRIDGE_API_KEY) {
+    return res.status(401).json({ error: 'Invalid or missing X-Bridge-Key' });
+  }
+  next();
+};
+
+app.get('/api/bridge/projects', bridgeAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, 
+        COUNT(CASE WHEN t.status = 'done' THEN 1 END)::int as completed_tasks,
+        COUNT(t.id)::int as total_tasks
+      FROM projects p
+      LEFT JOIN tasks t ON p.id = t.project_id
+      WHERE p.archived = false
+      GROUP BY p.id
+      ORDER BY p.priority DESC, p.created_at DESC
+    `);
+    res.json({ ok: true, projects: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/bridge/projects/:id', bridgeAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const tasksResult = await pool.query(
+      'SELECT * FROM tasks WHERE project_id = $1 AND (archived = 0 OR archived IS NULL) ORDER BY order_index, id',
+      [id]
+    );
+    res.json({ ok: true, project: { ...projectResult.rows[0], tasks: tasksResult.rows } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bridge/tasks', bridgeAuth, async (req, res) => {
+  try {
+    const { project_id, title, description, execution_prompt, assigned_agent, priority } = req.body;
+    if (!project_id || !title) {
+      return res.status(400).json({ error: 'project_id and title are required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO tasks (project_id, title, description, execution_prompt, assigned_agent, priority, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, 'chatgpt') RETURNING *`,
+      [project_id, title, description || '', execution_prompt || '', assigned_agent || 'chatgpt', priority || 'medium']
+    );
+    res.status(201).json({ ok: true, task: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/bridge/tasks/:id', bridgeAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, title, description } = req.body;
+    if (status) {
+      const s = status.toLowerCase();
+      if (s === 'done' || s === 'failed') {
+        const logCheck = await pool.query('SELECT 1 FROM execution_logs WHERE task_id = $1 LIMIT 1', [id]);
+        if (logCheck.rows.length === 0) {
+          return res.status(409).json({
+            error: 'TASK_LOG_REQUIRED',
+            message: 'Cannot mark task done/failed without at least one execution log.'
+          });
+        }
+      }
+    }
+    const completed_at = status === 'done' ? new Date().toISOString() : null;
+    await pool.query(
+      'UPDATE tasks SET status = COALESCE($1, status), title = COALESCE($2, title), description = COALESCE($3, description), completed_at = $4 WHERE id = $5',
+      [status, title, description, completed_at, id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bridge/execution-logs', bridgeAuth, async (req, res) => {
+  try {
+    const { task_id, agent, result } = req.body;
+    if (!task_id || !agent || result === undefined) {
+      return res.status(400).json({ error: 'task_id, agent, and result are required' });
+    }
+    const resultString = typeof result === 'object' ? JSON.stringify(result) : String(result);
+    const insertResult = await pool.query(
+      'INSERT INTO execution_logs (task_id, agent, result) VALUES ($1, $2, $3) RETURNING id',
+      [task_id, agent.trim(), resultString]
+    );
+    res.status(201).json({ ok: true, log_id: insertResult.rows[0].id, task_id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

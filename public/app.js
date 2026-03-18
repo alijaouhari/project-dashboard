@@ -526,6 +526,12 @@ function showSearchResults(results) {
 async function updateProjectStatuses() {
   const statusInfoEl = document.getElementById('statusRefreshInfo');
   
+  // Set refreshing status immediately
+  if (statusInfoEl) {
+    statusInfoEl.textContent = 'Status: refreshing...';
+    statusInfoEl.className = 'status-refresh-info';
+  }
+  
   try {
     // Create abort controller for 5-second timeout
     const controller = new AbortController();
@@ -548,6 +554,10 @@ async function updateProjectStatuses() {
         localStorage.removeItem('token');
         token = null;
         showScreen('login-screen');
+        if (statusInfoEl) {
+          statusInfoEl.textContent = 'Status: logged out';
+          statusInfoEl.className = 'status-refresh-info error';
+        }
         return;
       }
       
@@ -701,14 +711,21 @@ async function updateProjectStatuses() {
 // Auto-refresh status every 30 seconds
 let statusRefreshInterval = null;
 
-function startStatusMonitoring() {
+async function startStatusMonitoring() {
   // Clear any existing interval
   if (statusRefreshInterval) {
     clearInterval(statusRefreshInterval);
   }
   
-  // Immediate status update (no delay)
-  updateProjectStatuses();
+  // Update status info immediately
+  const statusInfoEl = document.getElementById('statusRefreshInfo');
+  if (statusInfoEl) {
+    statusInfoEl.textContent = 'Status: starting...';
+    statusInfoEl.className = 'status-refresh-info';
+  }
+  
+  // Immediate status update (await it)
+  await updateProjectStatuses();
   
   // Set up auto-refresh every 30 seconds
   statusRefreshInterval = setInterval(updateProjectStatuses, 30000);
@@ -778,121 +795,17 @@ showScreen = function(screenId) {
   originalShowScreen(screenId);
 }
 
-// Workflow Editor Functions
-
-// Populate workflow project dropdown
-async function populateWorkflowProjectSelect() {
-  try {
-    const projects = await apiCall('/projects?archived=false');
-    
-    if (!projects) return;
-    
-    const select = document.getElementById('workflowProjectSelect');
-    
-    // Clear existing options except the first one
-    select.innerHTML = '<option value="">-- Select a project --</option>';
-    
-    projects.forEach(project => {
-      const option = document.createElement('option');
-      option.value = project.id;
-      option.textContent = project.name;
-      select.appendChild(option);
-    });
-    
-    console.log(`✅ Workflow project dropdown populated: ${projects.length} projects`);
-  } catch (err) {
-    console.error('Failed to populate workflow project dropdown:', err);
+// Defensive watchdog: ensure monitoring starts even if override chain breaks
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if user is already logged in
+  if (token && localStorage.getItem('token')) {
+    // Wait a bit for initial render, then check if dashboard is visible
+    setTimeout(() => {
+      const dashboardScreen = document.getElementById('dashboard-screen');
+      if (dashboardScreen && !dashboardScreen.classList.contains('hidden')) {
+        console.log('🔧 Watchdog: Starting status monitoring');
+        startStatusMonitoring();
+      }
+    }, 2000);
   }
-}
-
-// Save workflow and regenerate tasks
-async function saveWorkflow() {
-  const projectId = document.getElementById('workflowProjectSelect').value;
-  const jsonInput = document.getElementById('workflowJsonInput').value.trim();
-  const statusDiv = document.getElementById('workflowSaveStatus');
-  
-  // Clear previous status
-  statusDiv.textContent = '';
-  statusDiv.className = 'workflow-status';
-  
-  // Validation
-  if (!projectId) {
-    statusDiv.textContent = '❌ Please select a project';
-    statusDiv.className = 'workflow-status error';
-    return;
-  }
-  
-  if (!jsonInput) {
-    statusDiv.textContent = '❌ Please enter workflow JSON';
-    statusDiv.className = 'workflow-status error';
-    return;
-  }
-  
-  // Parse JSON
-  let workflowData;
-  try {
-    workflowData = JSON.parse(jsonInput);
-  } catch (err) {
-    statusDiv.textContent = '❌ Invalid JSON: ' + err.message;
-    statusDiv.className = 'workflow-status error';
-    return;
-  }
-  
-  // Validate required fields
-  if (!workflowData.goals || !workflowData.workflow) {
-    statusDiv.textContent = '❌ JSON must contain "goals" and "workflow" fields';
-    statusDiv.className = 'workflow-status error';
-    return;
-  }
-  
-  // Show loading
-  statusDiv.textContent = '⏳ Saving workflow and regenerating tasks...';
-  statusDiv.className = 'workflow-status loading';
-  
-  try {
-    // Call PUT /api/projects/:id/workflow
-    const response = await apiCall(`/projects/${projectId}/workflow`, {
-      method: 'PUT',
-      body: JSON.stringify(workflowData)
-    });
-    
-    if (response && response.ok) {
-      statusDiv.textContent = '✅ Saved. Tasks regenerated.';
-      statusDiv.className = 'workflow-status success';
-      
-      // Refresh dashboard to show updated tasks
-      await loadDashboard();
-      
-      // Clear the textarea
-      document.getElementById('workflowJsonInput').value = '';
-      
-      console.log(`✅ Workflow saved for project ${projectId}`);
-    } else {
-      statusDiv.textContent = '❌ Failed to save: ' + (response?.message || 'Unknown error');
-      statusDiv.className = 'workflow-status error';
-    }
-  } catch (err) {
-    statusDiv.textContent = '❌ Error: ' + err.message;
-    statusDiv.className = 'workflow-status error';
-    console.error('Failed to save workflow:', err);
-  }
-}
-
-// Initialize workflow editor
-function initWorkflowEditor() {
-  const saveBtn = document.getElementById('saveWorkflowBtn');
-  
-  if (saveBtn) {
-    saveBtn.addEventListener('click', saveWorkflow);
-  }
-  
-  // Populate project dropdown when dashboard loads
-  populateWorkflowProjectSelect();
-}
-
-// Override loadDashboard to initialize workflow editor
-const originalLoadDashboardWithWorkflow = loadDashboard;
-loadDashboard = async function() {
-  await originalLoadDashboardWithWorkflow();
-  initWorkflowEditor();
-}
+});

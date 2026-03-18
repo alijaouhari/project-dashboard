@@ -855,8 +855,8 @@ header h1 {
   line-height: 1.5;
 }
 
-/* Workflow Editor Panel */
-.workflow-editor-panel {
+/* Workflow Status Panel */
+.workflow-status-panel {
   margin: 40px auto;
   max-width: 1200px;
   padding: 24px;
@@ -865,79 +865,46 @@ header h1 {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.workflow-editor-panel h2 {
+.workflow-status-panel h2 {
   font-size: 20px;
   font-weight: 600;
   color: #1e293b;
   margin-bottom: 20px;
 }
 
-.workflow-editor-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.workflow-info {
+  color: #475569;
+  line-height: 1.6;
 }
 
-.workflow-editor-content label {
+.workflow-description {
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+.workflow-triggers {
+  margin: 16px 0;
+  padding-left: 24px;
+  list-style: none;
+}
+
+.workflow-triggers li {
+  margin: 8px 0;
   font-size: 14px;
-  font-weight: 600;
-  color: #334155;
-  margin-top: 8px;
-}
-
-.workflow-select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-  cursor: pointer;
-}
-
-.workflow-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-}
-
-.workflow-textarea {
-  width: 100%;
-  min-height: 300px;
-  padding: 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.workflow-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-}
-
-.workflow-status {
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  margin-top: 8px;
-}
-
-.workflow-status.success {
-  background: #dcfce7;
   color: #16a34a;
 }
 
-.workflow-status.error {
-  background: #fee2e2;
-  color: #dc2626;
+.workflow-note {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f0f9ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
-.workflow-status.loading {
-  background: #dbeafe;
-  color: #2563eb;
+.workflow-note strong {
+  color: #1e40af;
 }
 
 /* Status Refresh Info */

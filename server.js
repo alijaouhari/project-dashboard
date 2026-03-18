@@ -448,6 +448,394 @@ async function reconcileSystemProgress() {
 
 initDatabase();
 
+// Automatic Workflow Generation
+async function generateWorkflow(projectId) {
+  try {
+    console.log(`🔄 Generating workflow for project ${projectId}`);
+    
+    // Fetch project data
+    const projectQuery = DB_MODE === 'postgresql'
+      ? 'SELECT * FROM projects WHERE id = $1'
+      : 'SELECT * FROM projects WHERE id = ?';
+    const projectResult = await pool.query(projectQuery, [projectId]);
+    
+    if (projectResult.rows.length === 0) {
+      console.error(`Project ${projectId} not found`);
+      return;
+    }
+    
+    const project = projectResult.rows[0];
+    
+    // Fetch architecture if exists
+    const archQuery = DB_MODE === 'postgresql'
+      ? 'SELECT * FROM architecture WHERE project_id = $1'
+      : 'SELECT * FROM architecture WHERE project_id = ?';
+    const archResult = await pool.query(archQuery, [projectId]);
+    const architecture = archResult.rows.length > 0 ? archResult.rows[0] : null;
+    
+    // Detect project type and stack
+    const projectType = project.project_type || 'webapp';
+    const stack = architecture?.stack || '';
+    const projectName = project.name || '';
+    const projectUrl = project.project_url || '';
+    
+    // Determine workflow template based on project characteristics
+    let workflowTemplate = null;
+    
+    // Next.js + Supabase detection
+    if (stack.toLowerCase().includes('next') && stack.toLowerCase().includes('supabase')) {
+      workflowTemplate = 'nextjs-supabase';
+    }
+    // Electron detection
+    else if (projectType === 'desktop' || stack.toLowerCase().includes('electron') || projectName.toLowerCase().includes('desktop')) {
+      workflowTemplate = 'electron';
+    }
+    // React/Vite SPA detection
+    else if (stack.toLowerCase().includes('react') || stack.toLowerCase().includes('vite') || projectType === 'webapp') {
+      workflowTemplate = 'react-spa';
+    }
+    // Default to generic webapp
+    else {
+      workflowTemplate = 'generic-webapp';
+    }
+    
+    console.log(`📋 Using workflow template: ${workflowTemplate} for project ${projectId}`);
+    
+    // Generate workflow based on template
+    const workflow = generateWorkflowFromTemplate(workflowTemplate, project, architecture);
+    
+    // Save workflow to database
+    const goalsStr = JSON.stringify(workflow.goals);
+    const workflowStr = JSON.stringify(workflow.workflow);
+    
+    if (DB_MODE === 'postgresql') {
+      await pool.query(`
+        INSERT INTO project_workflows (project_id, goals, workflow, updated_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (project_id) 
+        DO UPDATE SET goals = $2, workflow = $3, updated_at = NOW()
+      `, [projectId, goalsStr, workflowStr]);
+    } else {
+      const checkQuery = 'SELECT id FROM project_workflows WHERE project_id = ?';
+      const existing = await pool.query(checkQuery, [projectId]);
+      
+      if (existing.rows.length > 0) {
+        await pool.query(`
+          UPDATE project_workflows 
+          SET goals = ?, workflow = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE project_id = ?
+        `, [goalsStr, workflowStr, projectId]);
+      } else {
+        await pool.query(`
+          INSERT INTO project_workflows (project_id, goals, workflow)
+          VALUES (?, ?, ?)
+        `, [projectId, goalsStr, workflowStr]);
+      }
+    }
+    
+    // Regenerate tasks from workflow
+    await regenerateTasksFromWorkflow(projectId, workflow.workflow);
+    
+    console.log(`✅ Workflow generated and tasks regenerated for project ${projectId}`);
+    
+  } catch (err) {
+    console.error(`Failed to generate workflow for project ${projectId}:`, err);
+  }
+}
+
+// Generate workflow from template
+function generateWorkflowFromTemplate(template, project, architecture) {
+  const projectName = project.name || 'Project';
+  
+  const workflows = {
+    'nextjs-supabase': {
+      goals: {
+        primary: `Build production-ready Next.js + Supabase application: ${projectName}`,
+        secondary: ['Ensure database integrity', 'Validate authentication', 'Deploy to production']
+      },
+      workflow: {
+        tasks: [
+          {
+            key: 'ARCH_SPEC',
+            title: 'Architecture Specification',
+            description: 'Define and document Next.js + Supabase architecture',
+            execution_prompt: 'Document the architecture: Next.js app structure, Supabase configuration, API routes, database schema, and deployment strategy.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'planning'
+          },
+          {
+            key: 'DB_VERIFY',
+            title: 'Database Verification',
+            description: 'Verify Supabase database schema and migrations',
+            execution_prompt: 'Check Supabase database: verify tables, RLS policies, migrations are applied, and schema matches documentation.',
+            assigned_agent: 'developer',
+            priority: 'high',
+            phase: 'development'
+          },
+          {
+            key: 'AUTH_SMOKE',
+            title: 'Auth Smoke Test',
+            description: 'Test Supabase authentication flow',
+            execution_prompt: 'Test authentication: sign up, sign in, sign out, password reset, and session management work correctly.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'testing'
+          },
+          {
+            key: 'CRITICAL_E2E',
+            title: 'Critical Flow E2E',
+            description: 'End-to-end test of critical user flows',
+            execution_prompt: 'Run E2E tests for critical flows: user registration, main feature usage, data persistence, and error handling.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'testing'
+          },
+          {
+            key: 'BUILD_SMOKE',
+            title: 'Production Build Smoke',
+            description: 'Verify production build works',
+            execution_prompt: 'Build for production and run smoke tests: check build output, verify no errors, test in production mode.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'deployment'
+          },
+          {
+            key: 'CI_VERIFY',
+            title: 'CI Pipeline Verification',
+            description: 'Ensure CI/CD pipeline is configured and passing',
+            execution_prompt: 'Verify CI pipeline: check GitHub Actions workflow, ensure tests run on push, verify deployment automation.',
+            assigned_agent: 'developer',
+            priority: 'medium',
+            phase: 'deployment'
+          },
+          {
+            key: 'LAUNCH_READY',
+            title: 'Launch Readiness Validation',
+            description: 'Final validation before production launch',
+            execution_prompt: 'Validate launch readiness: all tests passing, documentation complete, monitoring configured, backup strategy in place.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'deployment'
+          }
+        ]
+      }
+    },
+    'react-spa': {
+      goals: {
+        primary: `Build production-ready React SPA: ${projectName}`,
+        secondary: ['Ensure API integration', 'Validate offline support', 'Deploy to production']
+      },
+      workflow: {
+        tasks: [
+          {
+            key: 'ARCH_SPEC',
+            title: 'Architecture Specification',
+            description: 'Define and document React SPA architecture',
+            execution_prompt: 'Document the architecture: React component structure, state management, API integration, routing, and deployment strategy.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'planning'
+          },
+          {
+            key: 'API_VERIFY',
+            title: 'API Integration Verification',
+            description: 'Verify API endpoints and data flow',
+            execution_prompt: 'Test API integration: verify all endpoints work, error handling is correct, data transforms properly, and loading states work.',
+            assigned_agent: 'developer',
+            priority: 'high',
+            phase: 'development'
+          },
+          {
+            key: 'OFFLINE_VERIFY',
+            title: 'Offline Support Verification',
+            description: 'Test offline functionality and service worker',
+            execution_prompt: 'Verify offline support: test service worker, check caching strategy, ensure graceful degradation when offline.',
+            assigned_agent: 'developer',
+            priority: 'medium',
+            phase: 'development'
+          },
+          {
+            key: 'UI_E2E',
+            title: 'UI Critical Flow E2E',
+            description: 'End-to-end test of critical UI flows',
+            execution_prompt: 'Run E2E tests for critical UI flows: navigation, form submission, data display, and user interactions.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'testing'
+          },
+          {
+            key: 'BUILD_SMOKE',
+            title: 'Production Build Smoke',
+            description: 'Verify production build works',
+            execution_prompt: 'Build for production and run smoke tests: check bundle size, verify no errors, test in production mode.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'deployment'
+          },
+          {
+            key: 'CI_VERIFY',
+            title: 'CI Verification',
+            description: 'Ensure CI pipeline is configured and passing',
+            execution_prompt: 'Verify CI pipeline: check workflow configuration, ensure tests run automatically, verify build succeeds.',
+            assigned_agent: 'developer',
+            priority: 'medium',
+            phase: 'deployment'
+          },
+          {
+            key: 'LAUNCH_READY',
+            title: 'Launch Readiness Validation',
+            description: 'Final validation before production launch',
+            execution_prompt: 'Validate launch readiness: all tests passing, performance optimized, SEO configured, analytics in place.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'deployment'
+          }
+        ]
+      }
+    },
+    'electron': {
+      goals: {
+        primary: `Build production-ready Electron desktop app: ${projectName}`,
+        secondary: ['Ensure database integrity', 'Validate device integration', 'Package for distribution']
+      },
+      workflow: {
+        tasks: [
+          {
+            key: 'ARCH_SPEC',
+            title: 'Architecture Specification',
+            description: 'Define and document Electron app architecture',
+            execution_prompt: 'Document the architecture: Electron main/renderer process structure, IPC communication, database setup, and packaging strategy.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'planning'
+          },
+          {
+            key: 'DB_VALIDATE',
+            title: 'Database Validation',
+            description: 'Verify local database setup and migrations',
+            execution_prompt: 'Validate database: check SQLite setup, verify migrations work, test data persistence, ensure backup/restore works.',
+            assigned_agent: 'developer',
+            priority: 'high',
+            phase: 'development'
+          },
+          {
+            key: 'BUILD_VERIFY',
+            title: 'Desktop Build Verification',
+            description: 'Verify Electron build process',
+            execution_prompt: 'Test build process: verify electron-builder configuration, check build output, test app launches correctly.',
+            assigned_agent: 'developer',
+            priority: 'high',
+            phase: 'development'
+          },
+          {
+            key: 'DEVICE_TEST',
+            title: 'Printer/Device Integration Test',
+            description: 'Test hardware device integration',
+            execution_prompt: 'Test device integration: verify printer communication, test receipt printing, check device error handling.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'testing'
+          },
+          {
+            key: 'PACKAGE_SMOKE',
+            title: 'Packaging Smoke Test',
+            description: 'Test packaged application',
+            execution_prompt: 'Test packaged app: create installer, install on clean system, verify all features work, test auto-update.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'deployment'
+          },
+          {
+            key: 'CI_VERIFY',
+            title: 'CI Verification',
+            description: 'Ensure CI pipeline builds successfully',
+            execution_prompt: 'Verify CI pipeline: check build workflow, ensure packaging works in CI, verify artifacts are created.',
+            assigned_agent: 'developer',
+            priority: 'medium',
+            phase: 'deployment'
+          },
+          {
+            key: 'LAUNCH_READY',
+            title: 'Launch Readiness Validation',
+            description: 'Final validation before distribution',
+            execution_prompt: 'Validate launch readiness: all tests passing, installer tested, documentation complete, update mechanism working.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'deployment'
+          }
+        ]
+      }
+    },
+    'generic-webapp': {
+      goals: {
+        primary: `Build production-ready web application: ${projectName}`,
+        secondary: ['Ensure code quality', 'Validate functionality', 'Deploy to production']
+      },
+      workflow: {
+        tasks: [
+          {
+            key: 'ARCH_SPEC',
+            title: 'Architecture Specification',
+            description: 'Define and document application architecture',
+            execution_prompt: 'Document the architecture: tech stack, folder structure, database schema, API design, and deployment strategy.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'planning'
+          },
+          {
+            key: 'CORE_IMPL',
+            title: 'Core Implementation',
+            description: 'Implement core application features',
+            execution_prompt: 'Build core features: implement main functionality, set up database, create API endpoints, build UI components.',
+            assigned_agent: 'developer',
+            priority: 'high',
+            phase: 'development'
+          },
+          {
+            key: 'TESTING',
+            title: 'Testing & QA',
+            description: 'Write and run comprehensive tests',
+            execution_prompt: 'Create tests: unit tests for business logic, integration tests for APIs, E2E tests for critical flows.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'testing'
+          },
+          {
+            key: 'BUILD_SMOKE',
+            title: 'Production Build Smoke',
+            description: 'Verify production build works',
+            execution_prompt: 'Build for production and run smoke tests: check build output, verify no errors, test in production mode.',
+            assigned_agent: 'tester',
+            priority: 'high',
+            phase: 'deployment'
+          },
+          {
+            key: 'CI_VERIFY',
+            title: 'CI Verification',
+            description: 'Ensure CI pipeline is configured',
+            execution_prompt: 'Verify CI pipeline: check workflow configuration, ensure tests run automatically, verify deployment works.',
+            assigned_agent: 'developer',
+            priority: 'medium',
+            phase: 'deployment'
+          },
+          {
+            key: 'LAUNCH_READY',
+            title: 'Launch Readiness Validation',
+            description: 'Final validation before launch',
+            execution_prompt: 'Validate launch readiness: all tests passing, documentation complete, monitoring configured, ready for production.',
+            assigned_agent: 'planner',
+            priority: 'high',
+            phase: 'deployment'
+          }
+        ]
+      }
+    }
+  };
+  
+  return workflows[template] || workflows['generic-webapp'];
+}
+
 // Auth middleware
 const authenticate = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -645,6 +1033,10 @@ app.post('/api/projects', authenticate, async (req, res) => {
       [projectId, 'project_created', name]
     );
     
+    // Automatically generate workflow based on project metadata
+    // Run asynchronously to not block response
+    setImmediate(() => generateWorkflow(projectId));
+    
     res.json(normalizeProjectOutput(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -828,6 +1220,9 @@ app.put('/api/projects/:id/architecture', authenticate, async (req, res) => {
         [id, 'architecture_upsert', `Architecture updated for project ${id}`, 'system']
       );
       
+      // Automatically regenerate workflow based on updated architecture
+      setImmediate(() => generateWorkflow(id));
+      
       res.status(200).json(result.rows[0]);
     } else {
       // SQLite: Check existence, then INSERT or UPDATE
@@ -871,6 +1266,9 @@ app.put('/api/projects/:id/architecture', authenticate, async (req, res) => {
           [id, 'architecture_upsert', `Architecture updated for project ${id}`, 'system']
         );
         
+        // Automatically regenerate workflow based on updated architecture
+        setImmediate(() => generateWorkflow(id));
+        
         res.status(200).json(result.rows[0]);
       } else {
         // INSERT new record
@@ -889,6 +1287,9 @@ app.put('/api/projects/:id/architecture', authenticate, async (req, res) => {
           'INSERT INTO activity_log (project_id, action, details, actor) VALUES (?, ?, ?, ?)',
           [id, 'architecture_upsert', `Architecture created for project ${id}`, 'system']
         );
+        
+        // Automatically regenerate workflow based on new architecture
+        setImmediate(() => generateWorkflow(id));
         
         res.status(200).json(result.rows[0]);
       }
@@ -1573,6 +1974,126 @@ app.post('/api/intake', authenticate, async (req, res) => {
       project: normalizeProjectOutput(project),
       tasks: tasksResult.rows
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ChatGPT Bridge API — static API key auth for machine-to-machine
+// ============================================================
+const BRIDGE_API_KEY = process.env.BRIDGE_API_KEY || '';
+
+const bridgeAuth = (req, res, next) => {
+  const key = req.headers['x-bridge-key'];
+  if (!key || !BRIDGE_API_KEY || key !== BRIDGE_API_KEY) {
+    return res.status(401).json({ error: 'Invalid or missing X-Bridge-Key' });
+  }
+  next();
+};
+
+// GET /api/bridge/projects — list active projects
+app.get('/api/bridge/projects', bridgeAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, 
+        COUNT(CASE WHEN t.status = 'done' THEN 1 END)::int as completed_tasks,
+        COUNT(t.id)::int as total_tasks
+      FROM projects p
+      LEFT JOIN tasks t ON p.id = t.project_id
+      WHERE p.archived = false
+      GROUP BY p.id
+      ORDER BY p.priority DESC, p.created_at DESC
+    `);
+    res.json({ ok: true, projects: normalizeProjectsOutput(result.rows) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/bridge/projects/:id — single project with tasks
+app.get('/api/bridge/projects/:id', bridgeAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const tasksResult = await pool.query(
+      'SELECT * FROM tasks WHERE project_id = $1 AND (archived = 0 OR archived IS NULL) ORDER BY order_index, id',
+      [id]
+    );
+    const project = normalizeProjectOutput(projectResult.rows[0]);
+    res.json({ ok: true, project: { ...project, tasks: tasksResult.rows } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/bridge/tasks — create a task
+app.post('/api/bridge/tasks', bridgeAuth, async (req, res) => {
+  try {
+    const { project_id, title, description, execution_prompt, assigned_agent, priority } = req.body;
+    if (!project_id || !title) {
+      return res.status(400).json({ error: 'project_id and title are required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO tasks (project_id, title, description, execution_prompt, assigned_agent, priority, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, 'chatgpt') RETURNING *`,
+      [project_id, title, description || '', execution_prompt || '', assigned_agent || 'chatgpt', priority || 'medium']
+    );
+    res.status(201).json({ ok: true, task: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/bridge/tasks/:id — update a task (status, title, description)
+app.patch('/api/bridge/tasks/:id', bridgeAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, title, description } = req.body;
+
+    // If marking done/failed, enforce execution log gate
+    if (status) {
+      const s = status.toLowerCase();
+      if (s === 'done' || s === 'failed') {
+        const logCheck = await pool.query(
+          'SELECT 1 FROM execution_logs WHERE task_id = $1 LIMIT 1', [id]
+        );
+        if (logCheck.rows.length === 0) {
+          return res.status(409).json({
+            error: 'TASK_LOG_REQUIRED',
+            message: 'Cannot mark task done/failed without at least one execution log.'
+          });
+        }
+      }
+    }
+
+    const completed_at = status === 'done' ? new Date().toISOString() : null;
+    await pool.query(
+      'UPDATE tasks SET status = COALESCE($1, status), title = COALESCE($2, title), description = COALESCE($3, description), completed_at = $4 WHERE id = $5',
+      [status, title, description, completed_at, id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/bridge/execution-logs — log an execution
+app.post('/api/bridge/execution-logs', bridgeAuth, async (req, res) => {
+  try {
+    const { task_id, agent, result } = req.body;
+    if (!task_id || !agent || result === undefined) {
+      return res.status(400).json({ error: 'task_id, agent, and result are required' });
+    }
+    const resultString = typeof result === 'object' ? JSON.stringify(result) : String(result);
+    const insertResult = await pool.query(
+      'INSERT INTO execution_logs (task_id, agent, result) VALUES ($1, $2, $3) RETURNING id',
+      [task_id, agent.trim(), resultString]
+    );
+    res.status(201).json({ ok: true, log_id: insertResult.rows[0].id, task_id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
