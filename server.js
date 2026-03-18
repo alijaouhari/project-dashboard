@@ -1982,10 +1982,10 @@ app.post('/api/intake', authenticate, async (req, res) => {
 // ============================================================
 // ChatGPT Bridge API — static API key auth for machine-to-machine
 // ============================================================
-const BRIDGE_API_KEY = process.env.BRIDGE_API_KEY || '';
+const BRIDGE_API_KEY = (process.env.BRIDGE_API_KEY || '').trim();
 
 const bridgeAuth = (req, res, next) => {
-  const key = req.headers['x-bridge-key'];
+  const key = (req.headers['x-bridge-key'] || '').trim();
   if (!key || !BRIDGE_API_KEY || key !== BRIDGE_API_KEY) {
     return res.status(401).json({ error: 'Invalid or missing X-Bridge-Key' });
   }
