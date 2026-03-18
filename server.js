@@ -2099,6 +2099,26 @@ app.post('/api/bridge/execution-logs', bridgeAuth, async (req, res) => {
   }
 });
 
+// ChatGPT plugin discovery
+app.get('/.well-known/ai-plugin.json', (req, res) => {
+  res.json({
+    schema_version: 'v1',
+    name_for_human: 'Project Dashboard',
+    name_for_model: 'project_dashboard',
+    description_for_human: 'Read and write to your project dashboard — list projects, manage tasks, log execution results.',
+    description_for_model: 'Access the project dashboard. Use get_projects to list projects. Use get_project to see a project and its tasks. Use create_task to add tasks. Use log_execution to record work done on a task. Use update_task to change task status (must log_execution before marking done/failed).',
+    auth: { type: 'service_http', authorization_type: 'custom', custom_auth_header: 'X-Bridge-Key' },
+    api: { type: 'openapi', url: 'https://project-dashboard-aj.vercel.app/openapi.json' },
+    logo_url: 'https://project-dashboard-aj.vercel.app/favicon.ico',
+    contact_email: 'admin@dashboard.local',
+    legal_info_url: 'https://project-dashboard-aj.vercel.app'
+  });
+});
+
+app.get('/openapi.json', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/openapi.json'));
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Project Dashboard running on http://0.0.0.0:${PORT}`);
 });

@@ -1,14 +1,13 @@
 {
-  "openapi": "3.1.0",
+  "openapi": "3.0.0",
   "info": {
-    "title": "Project Dashboard Bridge API",
-    "description": "ChatGPT connector for reading and writing to the Project Dashboard. Authenticate with X-Bridge-Key header.",
+    "title": "Project Dashboard Bridge",
+    "description": "Read and write to the Project Dashboard. Use get_projects to list projects, get_project to see tasks, create_task to add work, log_execution to record results, update_task to change status. You must log_execution before marking a task done or failed.",
     "version": "1.0.0"
   },
   "servers": [
     {
-      "url": "https://project-dashboard-aj.vercel.app",
-      "description": "Production"
+      "url": "https://project-dashboard-aj.vercel.app"
     }
   ],
   "paths": {
@@ -16,10 +15,9 @@
       "get": {
         "operationId": "get_projects",
         "summary": "List all active projects with task counts",
-        "parameters": [],
         "responses": {
           "200": {
-            "description": "List of projects",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
@@ -28,7 +26,19 @@
                     "ok": { "type": "boolean" },
                     "projects": {
                       "type": "array",
-                      "items": { "$ref": "#/components/schemas/Project" }
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "description": { "type": "string" },
+                          "status": { "type": "string" },
+                          "project_url": { "type": "string" },
+                          "project_type": { "type": "string" },
+                          "completed_tasks": { "type": "integer" },
+                          "total_tasks": { "type": "integer" }
+                        }
+                      }
                     }
                   }
                 }
@@ -41,25 +51,51 @@
     "/api/bridge/projects/{id}": {
       "get": {
         "operationId": "get_project",
-        "summary": "Get a single project with its tasks",
+        "summary": "Get one project with all its tasks",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": { "type": "integer" },
+            "description": "Project ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "Project with tasks",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "ok": { "type": "boolean" },
-                    "project": { "$ref": "#/components/schemas/ProjectWithTasks" }
+                    "project": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" },
+                        "status": { "type": "string" },
+                        "project_url": { "type": "string" },
+                        "project_type": { "type": "string" },
+                        "tasks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "title": { "type": "string" },
+                              "description": { "type": "string" },
+                              "status": { "type": "string" },
+                              "execution_prompt": { "type": "string" },
+                              "assigned_agent": { "type": "string" },
+                              "priority": { "type": "string" }
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -71,7 +107,7 @@
     "/api/bridge/tasks": {
       "post": {
         "operationId": "create_task",
-        "summary": "Create a new task for a project",
+        "summary": "Create a new task in a project",
         "requestBody": {
           "required": true,
           "content": {
@@ -80,12 +116,12 @@
                 "type": "object",
                 "required": ["project_id", "title"],
                 "properties": {
-                  "project_id": { "type": "integer", "description": "ID of the project" },
+                  "project_id": { "type": "integer", "description": "Project ID to add the task to" },
                   "title": { "type": "string", "description": "Task title" },
-                  "description": { "type": "string" },
-                  "execution_prompt": { "type": "string", "description": "Prompt for the AI agent executing this task" },
-                  "assigned_agent": { "type": "string", "enum": ["planner", "developer", "tester", "chatgpt"] },
-                  "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+                  "description": { "type": "string", "description": "Task description" },
+                  "execution_prompt": { "type": "string", "description": "Instructions for the agent executing this task" },
+                  "assigned_agent": { "type": "string", "description": "Agent name: planner, developer, tester, or chatgpt" },
+                  "priority": { "type": "string", "description": "low, medium, or high" }
                 }
               }
             }
@@ -100,7 +136,15 @@
                   "type": "object",
                   "properties": {
                     "ok": { "type": "boolean" },
-                    "task": { "$ref": "#/components/schemas/Task" }
+                    "task": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "project_id": { "type": "integer" },
+                        "title": { "type": "string" },
+                        "status": { "type": "string" }
+                      }
+                    }
                   }
                 }
               }
@@ -112,13 +156,14 @@
     "/api/bridge/tasks/{id}": {
       "patch": {
         "operationId": "update_task",
-        "summary": "Update a task (status, title, description). Marking done/failed requires an execution log first.",
+        "summary": "Update a task. To mark done or failed you must call log_execution first.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" }
+            "schema": { "type": "integer" },
+            "description": "Task ID"
           }
         ],
         "requestBody": {
@@ -128,24 +173,38 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "status": { "type": "string", "enum": ["todo", "in-progress", "done", "failed", "pending"] },
-                  "title": { "type": "string" },
-                  "description": { "type": "string" }
+                  "status": { "type": "string", "description": "New status: todo, in-progress, done, failed, or pending" },
+                  "title": { "type": "string", "description": "New title" },
+                  "description": { "type": "string", "description": "New description" }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Task updated" },
-          "409": { "description": "TASK_LOG_REQUIRED — must log execution before marking done/failed" }
+          "200": {
+            "description": "Task updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Must log execution before marking done or failed"
+          }
         }
       }
     },
     "/api/bridge/execution-logs": {
       "post": {
         "operationId": "log_execution",
-        "summary": "Log an execution result for a task. Required before marking a task done/failed.",
+        "summary": "Log an execution result for a task. Required before marking a task done or failed.",
         "requestBody": {
           "required": true,
           "content": {
@@ -154,9 +213,9 @@
                 "type": "object",
                 "required": ["task_id", "agent", "result"],
                 "properties": {
-                  "task_id": { "type": "integer", "description": "ID of the task" },
-                  "agent": { "type": "string", "description": "Name of the agent (e.g. chatgpt, kiro, developer)" },
-                  "result": { "type": "string", "description": "Execution result or summary" }
+                  "task_id": { "type": "integer", "description": "Task ID this log belongs to" },
+                  "agent": { "type": "string", "description": "Who executed: chatgpt, kiro, developer, tester" },
+                  "result": { "type": "string", "description": "What was done or the outcome" }
                 }
               }
             }
@@ -183,52 +242,6 @@
     }
   },
   "components": {
-    "schemas": {
-      "Project": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "integer" },
-          "name": { "type": "string" },
-          "description": { "type": "string" },
-          "status": { "type": "string" },
-          "priority": { "type": "integer" },
-          "project_url": { "type": "string" },
-          "project_type": { "type": "string" },
-          "completed_tasks": { "type": "integer" },
-          "total_tasks": { "type": "integer" },
-          "created_at": { "type": "string" },
-          "updated_at": { "type": "string" }
-        }
-      },
-      "Task": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "integer" },
-          "project_id": { "type": "integer" },
-          "title": { "type": "string" },
-          "description": { "type": "string" },
-          "status": { "type": "string" },
-          "execution_prompt": { "type": "string" },
-          "assigned_agent": { "type": "string" },
-          "priority": { "type": "string" },
-          "created_by": { "type": "string" }
-        }
-      },
-      "ProjectWithTasks": {
-        "allOf": [
-          { "$ref": "#/components/schemas/Project" },
-          {
-            "type": "object",
-            "properties": {
-              "tasks": {
-                "type": "array",
-                "items": { "$ref": "#/components/schemas/Task" }
-              }
-            }
-          }
-        ]
-      }
-    },
     "securitySchemes": {
       "BridgeKey": {
         "type": "apiKey",
