@@ -50,3 +50,28 @@ Sensitive information and credentials stored separately (not in version control)
 
 ---
 *Documentation consolidated - February 2026*
+
+## ChatGPT Bridge API
+
+### Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/bridge/projects | List active projects |
+| GET | /api/bridge/projects/:id | Get project + tasks |
+| POST | /api/bridge/tasks | Create task |
+| PATCH | /api/bridge/tasks/:id | Update task |
+| POST | /api/bridge/execution-logs | Log execution |
+
+### Auth
+- Header: `X-Bridge-Key`
+- Value: Set in Vercel env var `BRIDGE_API_KEY`
+
+### Discovery
+- OpenAPI: https://project-dashboard-aj.vercel.app/openapi.json
+- Plugin manifest: https://project-dashboard-aj.vercel.app/.well-known/ai-plugin.json
+
+### Task Completion Rule
+Must call `log_execution` before marking any task `done` or `failed`.
+
+---
+*Bridge added - March 2026*
