@@ -12,16 +12,16 @@
   ],
   "routes": [
     {
+      "src": "/.well-known/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
     },
     {
       "src": "/(.*\\.(css|js|json|png|jpg|jpeg|gif|svg|ico))",
       "dest": "/public/$1"
-    },
-    {
-      "src": "/.well-known/(.*)",
-      "dest": "/api/index.js"
     },
     {
       "src": "/(.*)",
