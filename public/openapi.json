@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.1.0",
   "info": {
     "title": "Project Dashboard Bridge",
     "description": "Read and write to the Project Dashboard. Use get_projects to list projects, get_project to see tasks, create_task to add work, log_execution to record results, update_task to change status. You must log_execution before marking a task done or failed.",
@@ -242,6 +242,7 @@
     }
   },
   "components": {
+    "schemas": {},
     "securitySchemes": {
       "BridgeKey": {
         "type": "apiKey",
