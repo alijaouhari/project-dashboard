@@ -1985,7 +1985,17 @@ app.post('/api/intake', authenticate, async (req, res) => {
 const BRIDGE_API_KEY = (process.env.BRIDGE_API_KEY || '').trim();
 
 const bridgeAuth = (req, res, next) => {
-  const key = (req.headers['x-bridge-key'] || '').trim();
+  const fromHeader = (req.headers['x-bridge-key'] || '').trim();
+  const fromAuth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+  const fromQuery = (req.query.key || '').trim();
+  const key = fromHeader || fromAuth || fromQuery;
+
+  console.log('[bridge-auth]', req.method, req.path,
+    'x-bridge-key:', fromHeader ? 'present' : 'missing',
+    'authorization:', fromAuth ? 'present' : 'missing',
+    'query-key:', fromQuery ? 'present' : 'missing',
+    'env-set:', BRIDGE_API_KEY ? 'yes' : 'NO');
+
   if (!key || !BRIDGE_API_KEY || key !== BRIDGE_API_KEY) {
     return res.status(401).json({ error: 'Invalid or missing X-Bridge-Key' });
   }
@@ -2107,7 +2117,7 @@ app.get('/.well-known/ai-plugin.json', (req, res) => {
     name_for_model: 'project_dashboard',
     description_for_human: 'Read and write to your project dashboard — list projects, manage tasks, log execution results.',
     description_for_model: 'Access the project dashboard. Use get_projects to list projects. Use get_project to see a project and its tasks. Use create_task to add tasks. Use log_execution to record work done on a task. Use update_task to change task status (must log_execution before marking done/failed).',
-    auth: { type: 'service_http', authorization_type: 'custom', custom_auth_header: 'X-Bridge-Key' },
+    auth: { type: 'service_http', authorization_type: 'bearer' },
     api: { type: 'openapi', url: 'https://project-dashboard-aj.vercel.app/openapi.json' },
     logo_url: 'https://project-dashboard-aj.vercel.app/favicon.ico',
     contact_email: 'admin@dashboard.local',

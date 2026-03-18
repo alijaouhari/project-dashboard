@@ -245,9 +245,8 @@
     "schemas": {},
     "securitySchemes": {
       "BridgeKey": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-Bridge-Key"
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   },
