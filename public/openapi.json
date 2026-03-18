@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Project Dashboard Bridge",
-    "description": "Read and write to the Project Dashboard. Use get_projects to list projects, get_project to see tasks, create_task to add work, log_execution to record results, update_task to change status. You must log_execution before marking a task done or failed.",
+    "description": "Read and write to the Project Dashboard. Use get_projects to list projects, get_project to see tasks, create_task to add work, log_execution to record results, update_task to change status. You must log_execution before marking a task done or failed. All IDs are strings.",
     "version": "1.0.0"
   },
   "servers": [
@@ -14,7 +14,7 @@
     "/api/bridge/projects": {
       "get": {
         "operationId": "get_projects",
-        "summary": "List all active projects with task counts",
+        "summary": "List all active projects with task counts. Use the id field to reference projects in other calls.",
         "responses": {
           "200": {
             "description": "OK",
@@ -29,7 +29,7 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "integer" },
+                          "id": { "type": "string", "description": "Project ID - use this for get_project and create_task" },
                           "name": { "type": "string" },
                           "description": { "type": "string" },
                           "status": { "type": "string" },
@@ -57,8 +57,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" },
-            "description": "Project ID"
+            "schema": { "type": "string" },
+            "description": "Project ID from get_projects"
           }
         ],
         "responses": {
@@ -73,7 +73,7 @@
                     "project": {
                       "type": "object",
                       "properties": {
-                        "id": { "type": "integer" },
+                        "id": { "type": "string" },
                         "name": { "type": "string" },
                         "description": { "type": "string" },
                         "status": { "type": "string" },
@@ -84,7 +84,7 @@
                           "items": {
                             "type": "object",
                             "properties": {
-                              "id": { "type": "integer" },
+                              "id": { "type": "string", "description": "Task ID - use for update_task and log_execution" },
                               "title": { "type": "string" },
                               "description": { "type": "string" },
                               "status": { "type": "string" },
@@ -116,7 +116,7 @@
                 "type": "object",
                 "required": ["project_id", "title"],
                 "properties": {
-                  "project_id": { "type": "integer", "description": "Project ID to add the task to" },
+                  "project_id": { "type": "string", "description": "Project ID from get_projects" },
                   "title": { "type": "string", "description": "Task title" },
                   "description": { "type": "string", "description": "Task description" },
                   "execution_prompt": { "type": "string", "description": "Instructions for the agent executing this task" },
@@ -139,8 +139,8 @@
                     "task": {
                       "type": "object",
                       "properties": {
-                        "id": { "type": "integer" },
-                        "project_id": { "type": "integer" },
+                        "id": { "type": "string" },
+                        "project_id": { "type": "string" },
                         "title": { "type": "string" },
                         "status": { "type": "string" }
                       }
@@ -162,7 +162,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer" },
+            "schema": { "type": "string" },
             "description": "Task ID"
           }
         ],
@@ -213,7 +213,7 @@
                 "type": "object",
                 "required": ["task_id", "agent", "result"],
                 "properties": {
-                  "task_id": { "type": "integer", "description": "Task ID this log belongs to" },
+                  "task_id": { "type": "string", "description": "Task ID from get_project" },
                   "agent": { "type": "string", "description": "Who executed: chatgpt, kiro, developer, tester" },
                   "result": { "type": "string", "description": "What was done or the outcome" }
                 }
@@ -230,8 +230,8 @@
                   "type": "object",
                   "properties": {
                     "ok": { "type": "boolean" },
-                    "log_id": { "type": "integer" },
-                    "task_id": { "type": "integer" }
+                    "log_id": { "type": "string" },
+                    "task_id": { "type": "string" }
                   }
                 }
               }
